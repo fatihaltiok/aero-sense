@@ -12,16 +12,18 @@ import {
   ChevronLeft,
   Zap,
 } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 type IconComponent = React.ComponentType<{ className?: string }>;
 
-const navItems: { icon: IconComponent; label: string; active: boolean }[] = [
-  { icon: LayoutDashboard, label: "Dashboard",    active: true  },
-  { icon: Activity,        label: "Live-Stream",  active: false },
-  { icon: Cpu,             label: "Digital Twin", active: false },
-  { icon: FlameKindling,   label: "Anomalien",    active: false },
-  { icon: BarChart3,       label: "Analyse",      active: false },
+const navItems: { icon: IconComponent; label: string; href: string }[] = [
+  { icon: LayoutDashboard, label: "Dashboard",    href: "/"      },
+  { icon: Cpu,             label: "Digital Twin", href: "/twin"  },
+  { icon: Activity,        label: "Live-Stream",  href: "/"      },
+  { icon: FlameKindling,   label: "Anomalien",    href: "/"      },
+  { icon: BarChart3,       label: "Analyse",      href: "/"      },
 ];
 
 export function Sidebar() {
@@ -62,12 +64,7 @@ export function Sidebar() {
 
       {/* Settings */}
       <div className="px-2 pb-4 space-y-1">
-        <NavItem
-          icon={Settings2}
-          label="Einstellungen"
-          active={false}
-          collapsed={collapsed}
-        />
+        <NavItem icon={Settings2} label="Einstellungen" href="/" collapsed={collapsed} />
       </div>
 
       {/* Collapse Toggle */}
@@ -86,16 +83,20 @@ export function Sidebar() {
 function NavItem({
   icon: Icon,
   label,
-  active,
+  href,
   collapsed,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
-  active: boolean;
+  href: string;
   collapsed: boolean;
 }) {
+  const pathname = usePathname();
+  const active = pathname === href;
+
   return (
-    <button
+    <Link
+      href={href}
       className={cn(
         "relative w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 overflow-hidden group",
         active
@@ -125,6 +126,6 @@ function NavItem({
           </motion.span>
         )}
       </AnimatePresence>
-    </button>
+    </Link>
   );
 }

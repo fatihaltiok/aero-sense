@@ -359,7 +359,7 @@ export const DigitalTwin = memo(function DigitalTwin({ twinState = DEFAULT_TWIN,
   const [hovered, setHovered] = useState(false);
 
   return (
-    <div className="glass-card overflow-hidden h-full relative">
+    <div className="glass-card overflow-hidden relative" style={{ height: "100%", minHeight: 340 }}>
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-10 px-4 py-3 flex items-center justify-between border-b border-[#1E1E3A] bg-[#050508]/60 backdrop-blur-sm">
         <span className="text-xs font-semibold uppercase tracking-widest text-[#64748B]">
@@ -395,7 +395,7 @@ export const DigitalTwin = memo(function DigitalTwin({ twinState = DEFAULT_TWIN,
         onPointerEnter={() => setHovered(true)}
         onPointerLeave={() => setHovered(false)}
         gl={{ antialias: true, alpha: true }}
-        style={{ background: "transparent" }}
+        style={{ width: "100%", height: "100%", display: "block" }}
       >
         <color attach="background" args={["#050508"]} />
         <fog attach="fog" args={["#050508", 12, 25]} />
