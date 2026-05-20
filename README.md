@@ -2,6 +2,8 @@
 
 Echtzeit-Dashboard für eine simulierte CNC-Fertigungslinie mit 3D Digital Twin, ML-Anomalie-Erkennung und Was-wäre-wenn-Simulator.
 
+**Live-Demo:** https://aero-sense-ashy.vercel.app
+
 ---
 
 ## Architektur
