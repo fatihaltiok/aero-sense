@@ -2,7 +2,7 @@
 
 import { useRef, useState, Suspense, memo } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { OrbitControls, Environment, Float, Text } from "@react-three/drei";
+import { OrbitControls, Environment, Float } from "@react-three/drei";
 import * as THREE from "three";
 import { type TwinState } from "@/hooks/useSensorStream";
 
@@ -127,16 +127,6 @@ function Spindle({ status, anomaly }: { status: string; anomaly: boolean }) {
         <meshStandardMaterial color="#64748B" metalness={1} roughness={0.05} />
       </mesh>
 
-      {/* Label */}
-      <Text
-        position={[0.4, 0.2, 0]}
-        fontSize={0.09}
-        color={STATUS_COLOR[status]}
-        anchorX="left"
-        font="/fonts/inter.woff"
-      >
-        SPINDEL
-      </Text>
     </group>
   );
 }
@@ -177,15 +167,6 @@ function Motor({ status }: { status: string }) {
         <meshStandardMaterial color="#06B6D4" metalness={0.8} roughness={0.2} emissive="#06B6D4" emissiveIntensity={0.3} />
       </mesh>
 
-      <Text
-        position={[-0.6, 0.35, 0]}
-        fontSize={0.09}
-        color={STATUS_COLOR[status]}
-        anchorX="right"
-        font="/fonts/inter.woff"
-      >
-        MOTOR
-      </Text>
     </group>
   );
 }
@@ -234,15 +215,6 @@ function CoolantSystem({ status }: { status: string }) {
           opacity={0.85}
         />
       </mesh>
-      <Text
-        position={[0, 0.45, 0]}
-        fontSize={0.08}
-        color={STATUS_COLOR[status]}
-        anchorX="center"
-        font="/fonts/inter.woff"
-      >
-        KÜHLM.
-      </Text>
     </group>
   );
 }
@@ -359,7 +331,7 @@ export const DigitalTwin = memo(function DigitalTwin({ twinState = DEFAULT_TWIN,
   const [hovered, setHovered] = useState(false);
 
   return (
-    <div className="glass-card overflow-hidden relative" style={{ height: "100%", minHeight: 340, display: "flex", flexDirection: "column" }}>
+    <div className="glass-card overflow-hidden relative" style={{ width: "100%", height: "100%", minHeight: 340 }}>
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-10 px-4 py-3 flex items-center justify-between border-b border-[#1E1E3A] bg-[#050508]/60 backdrop-blur-sm">
         <span className="text-xs font-semibold uppercase tracking-widest text-[#64748B]">

@@ -64,7 +64,7 @@ export default function TwinPage() {
       </div>
 
       {/* 3D Twin — Vollbild */}
-      <div style={{ flex: 1, padding: "1rem", minHeight: 0 }}>
+      <div style={{ height: "calc(100vh - 60px)", padding: "1rem" }}>
         <DigitalTwin twinState={frame.twin_state} anomaly={frame.anomaly} />
       </div>
     </div>
