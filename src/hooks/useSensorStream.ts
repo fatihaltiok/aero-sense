@@ -29,7 +29,23 @@ export interface SensorFrame {
 
 type ConnectionState = "connecting" | "open" | "closed" | "error";
 
-const WS_URL = `${process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8000"}/ws/sensors`;
+function buildWsUrl(): string {
+  // Explizite Env-Variable hat Vorrang (z.B. separates Backend)
+  if (process.env.NEXT_PUBLIC_WS_URL) {
+    return `${process.env.NEXT_PUBLIC_WS_URL}/ws/sensors`;
+  }
+  // Im Browser: gleiche Domain nutzen, Protokoll anpassen (https → wss)
+  if (typeof window !== "undefined") {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const host  = window.location.host;
+    // Vercel deployt das Backend unter /_/backend
+    const prefix = host.includes("localhost") ? "" : "/_/backend";
+    return `${proto}//${host}${prefix}/ws/sensors`;
+  }
+  return "ws://localhost:8000/ws/sensors";
+}
+
+const WS_URL = buildWsUrl();
 
 const FALLBACK_FRAME: SensorFrame = {
   ts: new Date().toISOString(),

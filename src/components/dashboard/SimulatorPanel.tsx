@@ -69,7 +69,11 @@ export function SimulatorPanel() {
   const runSimulation = useCallback((newParams: typeof params) => {
     startTransition(async () => {
       try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/simulate`, {
+        const apiBase = process.env.NEXT_PUBLIC_API_URL
+          ?? (typeof window !== "undefined" && !window.location.host.includes("localhost")
+              ? `${window.location.origin}/_/backend`
+              : "http://localhost:8000");
+        const res = await fetch(`${apiBase}/simulate`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(newParams),
