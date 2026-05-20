@@ -85,11 +85,18 @@ export const KpiCard = memo(function KpiCard({ label, value, unit, delta, status
 });
 
 function Sparkline({ color }: { color: string }) {
-  const points = Array.from({ length: 20 }, (_, i) => 40 + Math.sin(i * 0.7) * 15 + Math.random() * 10);
+  const [points, setPoints] = useState<number[]>([]);
+
+  // Math.random() nur client-seitig — verhindert SSR/Hydration-Mismatch
+  useEffect(() => {
+    setPoints(Array.from({ length: 20 }, (_, i) => 40 + Math.sin(i * 0.7) * 15 + Math.random() * 10));
+  }, []);
+
+  if (points.length === 0) return <div className="w-full h-8" />;
+
   const max = Math.max(...points);
   const min = Math.min(...points);
   const norm = (v: number) => ((v - min) / (max - min)) * 30;
-
   const d = points
     .map((p, i) => `${i === 0 ? "M" : "L"} ${(i / (points.length - 1)) * 200} ${30 - norm(p)}`)
     .join(" ");

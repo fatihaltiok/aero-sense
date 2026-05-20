@@ -18,20 +18,23 @@ interface LiveChartProps {
   frame?: SensorFrame;
 }
 
+const EMPTY_HISTORY: Record<Metric, DataPoint[]> = {
+  vibration: [], temperature: [], energy: [],
+};
+
 export function LiveChart({ frame }: LiveChartProps) {
   const [activeMetric, setActiveMetric] = useState<Metric>("vibration");
-  const [history, setHistory] = useState<Record<Metric, DataPoint[]>>(() => {
+  // Leer initialisieren — Math.random() + Date.now() nur client-seitig via useEffect
+  const [history, setHistory] = useState<Record<Metric, DataPoint[]>>(EMPTY_HISTORY);
+
+  useEffect(() => {
     const seed = (base: number) =>
       Array.from({ length: 60 }, (_, i) => ({
         time: Date.now() - (59 - i) * 800,
         value: base + Math.sin(i * 0.4) * (base * 0.1) + Math.random() * (base * 0.05),
       }));
-    return {
-      vibration:   seed(1.8),
-      temperature: seed(68),
-      energy:      seed(14),
-    };
-  });
+    setHistory({ vibration: seed(1.8), temperature: seed(68), energy: seed(14) });
+  }, []);
 
   const prevFrameTs = useRef<string>("");
 

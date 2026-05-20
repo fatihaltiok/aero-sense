@@ -161,11 +161,11 @@ function HeatmapLive({ frame }: { frame: SensorFrame }) {
   const STATIONS = ["Eingang", "Station A", "Station B", "Station C", "Station D", "Ausgang"];
   const METRICS  = ["Durchsatz", "Energie", "Vibration", "Temp."];
 
-  const [base, setBase] = useState(() =>
-    METRICS.map(() => STATIONS.map(() => Math.random() * 0.5))
-  );
+  // Null-Init — Math.random() nur client-seitig
+  const [base, setBase] = useState<number[][]>([]);
 
   useEffect(() => {
+    setBase(METRICS.map(() => STATIONS.map(() => Math.random() * 0.5)));
     const id = setInterval(() => {
       setBase((prev) =>
         prev.map((row) => row.map((v) => Math.max(0, Math.min(1, v + (Math.random() - 0.5) * 0.08))))
@@ -175,14 +175,16 @@ function HeatmapLive({ frame }: { frame: SensorFrame }) {
   }, []);
 
   // Sensor-Werte auf Heatmap aufprägen
-  const values = base.map((row, mi) =>
-    row.map((v) => {
-      if (mi === 2) return Math.max(v, frame.vibration.value / 6);
-      if (mi === 3) return Math.max(v, (frame.temp.value - 55) / 40);
-      if (mi === 1) return Math.max(v, (frame.energy.value - 10) / 10);
-      return v;
-    })
-  );
+  const values = base.length > 0
+    ? base.map((row, mi) =>
+        row.map((v) => {
+          if (mi === 2) return Math.max(v, frame.vibration.value / 6);
+          if (mi === 3) return Math.max(v, (frame.temp.value - 55) / 40);
+          if (mi === 1) return Math.max(v, (frame.energy.value - 10) / 10);
+          return v;
+        })
+      )
+    : METRICS.map(() => STATIONS.map(() => 0));
 
   const toColor = (v: number) => {
     if (v < 0.3) return { bg: "bg-green-500/20",  text: "text-green-400",  border: "border-green-500/20"  };

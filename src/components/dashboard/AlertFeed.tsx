@@ -38,10 +38,15 @@ interface AlertFeedProps {
 }
 
 export function AlertFeed({ anomaly = false, twinState }: AlertFeedProps) {
-  const [alerts, setAlerts] = useState<Alert[]>([
-    { id: crypto.randomUUID(), severity: "info", title: "System gestartet", detail: "Verbindung zu CNC-Fräse Alpha hergestellt", ts: new Date(Date.now() - 120_000) },
-    { id: crypto.randomUUID(), severity: "ok",   title: "Kalibrierung OK",  detail: "Alle Achsen kalibriert",                    ts: new Date(Date.now() -  80_000) },
-  ]);
+  // Leer initialisieren — crypto.randomUUID() + Date.now() nur client-seitig
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+
+  useEffect(() => {
+    setAlerts([
+      { id: crypto.randomUUID(), severity: "info", title: "System gestartet", detail: "Verbindung zu CNC-Fräse Alpha hergestellt", ts: new Date(Date.now() - 120_000) },
+      { id: crypto.randomUUID(), severity: "ok",   title: "Kalibrierung OK",  detail: "Alle Achsen kalibriert",                    ts: new Date(Date.now() -  80_000) },
+    ]);
+  }, []);
 
   const prevAnomaly = useState(false);
 
