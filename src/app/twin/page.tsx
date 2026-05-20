@@ -11,7 +11,7 @@ export default function TwinPage() {
   const isLive = connection === "open";
 
   return (
-    <div className="flex flex-col h-full bg-[#050508]">
+    <div className="flex flex-col bg-[#050508]" style={{ height: "100vh" }}>
       {/* Topbar */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-[#1E1E3A] flex-shrink-0">
         <div className="flex items-center gap-4">
@@ -64,7 +64,7 @@ export default function TwinPage() {
       </div>
 
       {/* 3D Twin — Vollbild */}
-      <div className="flex-1 p-4">
+      <div style={{ flex: 1, padding: "1rem", minHeight: 0 }}>
         <DigitalTwin twinState={frame.twin_state} anomaly={frame.anomaly} />
       </div>
     </div>
