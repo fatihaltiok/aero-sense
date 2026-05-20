@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: aero-sense-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    envVars:
+      - key: CORS_ORIGINS
+        value: https://aero-sense-ashy.vercel.app,http://localhost:3000
+      - key: ML_CONTAMINATION
+        value: "0.05"
+    healthCheckPath: /health

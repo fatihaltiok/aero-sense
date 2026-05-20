@@ -48,8 +48,6 @@ export function AlertFeed({ anomaly = false, twinState }: AlertFeedProps) {
     ]);
   }, []);
 
-  const prevAnomaly = useState(false);
-
   // Alerts aus Echtzeitdaten generieren
   useEffect(() => {
     if (!twinState) return;
