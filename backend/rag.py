@@ -191,18 +191,25 @@ def _build_context(context_docs: list[dict]) -> str:
 def _call_gemma_subprocess(prompt: str) -> str:
     """
     Ruft Gemma 4 im pkc-conda-env als Subprocess auf.
-    Dieses Env hat torch nightly + bitsandbytes 0.49.2 — einzige funktionierende Kombination.
+    Prompt wird als JSON-Datei übergeben — vermeidet Encoding-Probleme im Script.
     """
-    import subprocess, sys, tempfile, os
+    import subprocess, tempfile, os
 
-    script = f"""
-import json, sys, os
+    # Prompt sicher als JSON-Datei speichern
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json",
+                                     delete=False, encoding="utf-8") as pf:
+        json.dump({"prompt": prompt, "model_id": GEMMA_MODEL}, pf, ensure_ascii=False)
+        prompt_file = pf.name
+
+    script = """
+import json, sys, os, torch
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
-import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 
-model_id = {repr(GEMMA_MODEL)}
+data     = json.load(open(sys.argv[1], encoding="utf-8"))
+prompt   = data["prompt"]
+model_id = data["model_id"]
+
 quant = BitsAndBytesConfig(
     load_in_4bit=True,
     bnb_4bit_compute_dtype=torch.bfloat16,
@@ -211,12 +218,11 @@ quant = BitsAndBytesConfig(
 )
 tokenizer = AutoTokenizer.from_pretrained(model_id)
 model = AutoModelForCausalLM.from_pretrained(
-    model_id,
-    quantization_config=quant,
+    model_id, quantization_config=quant,
     device_map="cuda" if torch.cuda.is_available() else "cpu",
 )
 
-messages = [{{"role": "user", "content": {repr(prompt)}}}]
+messages    = [{"role": "user", "content": prompt}]
 prompt_text = tokenizer.apply_chat_template(
     messages, tokenize=False, add_generation_prompt=True
 )
@@ -224,28 +230,30 @@ inputs = tokenizer(prompt_text, return_tensors="pt").to(model.device)
 
 with torch.no_grad():
     out = model.generate(
-        **inputs,
-        max_new_tokens=512,
-        temperature=0.3,
-        do_sample=True,
+        **inputs, max_new_tokens=512,
+        temperature=0.3, do_sample=True,
         pad_token_id=tokenizer.eos_token_id,
     )
 
 response = tokenizer.decode(out[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
 print(response.strip())
 """
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-        f.write(script)
-        tmp = f.name
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py",
+                                     delete=False, encoding="utf-8") as sf:
+        sf.write(script)
+        script_file = sf.name
 
     try:
         result = subprocess.run(
-            [CONDA_PYTHON, tmp],
-            capture_output=True, text=True, timeout=180
+            [CONDA_PYTHON, script_file, prompt_file],
+            capture_output=True, text=True, timeout=180, encoding="utf-8"
         )
+        if result.returncode != 0 and not result.stdout.strip():
+            raise RuntimeError(result.stderr[-300:] if result.stderr else "Subprocess fehler")
         return result.stdout.strip()
     finally:
-        os.unlink(tmp)
+        os.unlink(script_file)
+        os.unlink(prompt_file)
 
 
 def generate_analysis(frame: dict) -> dict:
