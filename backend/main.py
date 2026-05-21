@@ -17,6 +17,9 @@ from pydantic import BaseModel, Field
 from sensors import SensorState
 from ml import detector
 
+# Letzter bekannter Sensor-Frame (für Chat-Kontext)
+_last_frame: dict = {}
+
 app = FastAPI(title="AERO-SENSE API", version="3.0.0")
 
 app.add_middleware(
@@ -133,6 +136,31 @@ async def get_analysis(analyse_id: str) -> dict:
     return _analyses[analyse_id]
 
 
+# ─── Chat ────────────────────────────────────────────────────────────────────
+
+class ChatMessage(BaseModel):
+    role:    str
+    content: str
+
+class ChatRequest(BaseModel):
+    message: str
+    history: list[ChatMessage] = []
+    use_frame: bool = True          # aktuellen Sensor-Frame als Kontext nutzen
+
+
+@app.post("/chat")
+async def chat(body: ChatRequest, bg: BackgroundTasks) -> dict:
+    """Synchroner Chat-Endpunkt — wartet auf Gemma-Antwort."""
+    from chat import chat_with_context
+    history = [{"role": m.role, "content": m.content} for m in body.history]
+    frame   = _last_frame if body.use_frame else None
+    try:
+        answer = chat_with_context(body.message, history, frame)
+        return {"role": "assistant", "content": answer, "ts": datetime.utcnow().isoformat() + "Z"}
+    except Exception as e:
+        return {"role": "assistant", "content": f"Fehler: {str(e)[:200]}", "ts": datetime.utcnow().isoformat() + "Z", "error": True}
+
+
 @app.post("/repair/feedback")
 async def repair_feedback(body: FeedbackRequest) -> dict:
     """Mechaniker bestätigt oder korrigiert den LLM-Vorschlag."""
@@ -177,6 +205,7 @@ async def sensor_stream(ws: WebSocket) -> None:
             frame["anomaly"] = ml_result["anomaly"]
             frame["ml"]      = ml_result
             frame["ts"]      = datetime.utcnow().isoformat() + "Z"
+            _last_frame.update(frame)
             await ws.send_text(json.dumps(frame))
             await asyncio.sleep(0.8)
     except WebSocketDisconnect:

@@ -11,6 +11,7 @@ import {
   Settings2,
   ChevronLeft,
   Zap,
+  MessageSquare,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -21,6 +22,7 @@ type IconComponent = React.ComponentType<{ className?: string }>;
 const navItems: { icon: IconComponent; label: string; href: string }[] = [
   { icon: LayoutDashboard, label: "Dashboard",    href: "/"      },
   { icon: Cpu,             label: "Digital Twin", href: "/twin"  },
+  { icon: MessageSquare,   label: "KI-Chat",      href: "/chat"  },
   { icon: Activity,        label: "Live-Stream",  href: "/"      },
   { icon: FlameKindling,   label: "Anomalien",    href: "/"      },
   { icon: BarChart3,       label: "Analyse",      href: "/"      },
