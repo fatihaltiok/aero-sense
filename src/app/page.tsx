@@ -9,6 +9,7 @@ import { RulGauge } from "@/components/dashboard/RulGauge";
 import { LiveChart } from "@/components/dashboard/LiveChart";
 import { DigitalTwin } from "@/components/dashboard/DigitalTwin";
 import { SimulatorPanel } from "@/components/dashboard/SimulatorPanel";
+import { AnalysisPanel } from "@/components/dashboard/AnalysisPanel";
 import { useSensorStream } from "@/hooks/useSensorStream";
 import { Gauge, Thermometer, Zap, Activity, Wifi, WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -119,8 +120,11 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Simulator */}
-          <SimulatorPanel />
+          {/* KI-Analyse + Simulator */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" style={{ minHeight: 420 }}>
+            <AnalysisPanel frame={frame} />
+            <SimulatorPanel />
+          </div>
 
           {/* Heatmap */}
           <div className="glass-card p-4">
