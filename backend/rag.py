@@ -28,6 +28,7 @@ COLLECTION_NAME   = "aero_sense_knowledge"
 FEEDBACK_COLLECTION = "aero_sense_feedback"
 VECTOR_SIZE       = 384          # all-MiniLM-L6-v2 Dimension
 GEMMA_MODEL       = "google/gemma-4-E4B-it"
+CONDA_PYTHON      = "/home/fatih-ubuntu/miniconda3/envs/pkc/bin/python3"
 
 
 # ─── Qdrant-Client ───────────────────────────────────────────────────────────
@@ -147,6 +148,8 @@ def frame_to_text(frame: dict) -> str:
         parts.append("ML-Anomalie erkannt")
 
     tw = frame.get("twin_state", {})
+    if isinstance(tw, list):
+        tw = {}
     critical = [k for k, v in tw.items() if v == "critical"]
     warning  = [k for k, v in tw.items() if v == "warn"]
     if critical:
@@ -157,60 +160,101 @@ def frame_to_text(frame: dict) -> str:
     return ". ".join(parts)
 
 
-# ─── Gemma 4 laden ───────────────────────────────────────────────────────────
+# ─── Gemma 4 via pkc-conda-env (4-bit quantisiert) ───────────────────────────
 
-_model = None
-_tokenizer = None
+def _build_context(context_docs: list[dict]) -> str:
+    parts = []
+    for doc in context_docs[:4]:
+        if doc.get("typ") == "fehler":
+            parts.append(
+                f"Bekannter Fehlerfall [{doc.get('id','?')}]:\n"
+                f"  Symptome: {', '.join(doc.get('symptome',[]))}\n"
+                f"  Ursachen: {', '.join(doc.get('mögliche_ursachen',[]))}\n"
+                f"  Lösung: {', '.join(doc.get('lösungen',[]))}\n"
+                f"  Teile: {', '.join(doc.get('ersatzteile',[]) or ['keine'])}"
+            )
+        elif doc.get("typ") == "wartung":
+            parts.append(
+                f"Wartungsintervall [{doc.get('id','?')}]:\n"
+                f"  Bauteil: {doc.get('bauteil','?')}\n"
+                f"  Tätigkeit: {doc.get('tätigkeit','?')}"
+            )
+        elif doc.get("typ") == "mechaniker_korrektur":
+            parts.append(
+                f"Mechaniker-Korrektur (verifiziert):\n"
+                f"  Situation: {doc.get('situation','?')}\n"
+                f"  Tatsächliche Lösung: {doc.get('korrekte_lösung','?')}"
+            )
+    return "\n\n".join(parts) if parts else "Keine ähnlichen Fälle gefunden."
 
-def get_gemma():
-    global _model, _tokenizer
-    if _model is None:
-        import torch
-        from transformers import AutoTokenizer, AutoModelForCausalLM
-        _tokenizer = AutoTokenizer.from_pretrained(GEMMA_MODEL)
-        _model = AutoModelForCausalLM.from_pretrained(
-            GEMMA_MODEL,
-            torch_dtype=torch.bfloat16,
-            device_map="auto",
+
+def _call_gemma_subprocess(prompt: str) -> str:
+    """
+    Ruft Gemma 4 im pkc-conda-env als Subprocess auf.
+    Dieses Env hat torch nightly + bitsandbytes 0.49.2 — einzige funktionierende Kombination.
+    """
+    import subprocess, sys, tempfile, os
+
+    script = f"""
+import json, sys, os
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+
+model_id = {repr(GEMMA_MODEL)}
+quant = BitsAndBytesConfig(
+    load_in_4bit=True,
+    bnb_4bit_compute_dtype=torch.bfloat16,
+    bnb_4bit_use_double_quant=True,
+    bnb_4bit_quant_type="nf4",
+)
+tokenizer = AutoTokenizer.from_pretrained(model_id)
+model = AutoModelForCausalLM.from_pretrained(
+    model_id,
+    quantization_config=quant,
+    device_map="cuda" if torch.cuda.is_available() else "cpu",
+)
+
+messages = [{{"role": "user", "content": {repr(prompt)}}}]
+prompt_text = tokenizer.apply_chat_template(
+    messages, tokenize=False, add_generation_prompt=True
+)
+inputs = tokenizer(prompt_text, return_tensors="pt").to(model.device)
+
+with torch.no_grad():
+    out = model.generate(
+        **inputs,
+        max_new_tokens=512,
+        temperature=0.3,
+        do_sample=True,
+        pad_token_id=tokenizer.eos_token_id,
+    )
+
+response = tokenizer.decode(out[0][inputs["input_ids"].shape[1]:], skip_special_tokens=True)
+print(response.strip())
+"""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
+        f.write(script)
+        tmp = f.name
+
+    try:
+        result = subprocess.run(
+            [CONDA_PYTHON, tmp],
+            capture_output=True, text=True, timeout=180
         )
-    return _tokenizer, _model
+        return result.stdout.strip()
+    finally:
+        os.unlink(tmp)
 
 
 def generate_analysis(frame: dict) -> dict:
-    """
-    Hauptfunktion: Sensor-Frame → strukturierte Analyse mit Reparaturplan.
-    Gibt dict zurück mit: ursache, massnahmen, ersatzteile, priorität, etc.
-    """
-    sensor_text = frame_to_text(frame)
+    """Sensor-Frame → strukturierte Analyse mit Reparaturplan via Gemma 4."""
+    sensor_text  = frame_to_text(frame)
     context_docs = retrieve_context(sensor_text)
+    context_str  = _build_context(context_docs)
 
-    # Kontext aufbereiten
-    context_parts = []
-    for doc in context_docs[:4]:
-        if doc.get("typ") == "fehler":
-            context_parts.append(
-                f"Bekannter Fehlerfall [{doc.get('id', '?')}]:\n"
-                f"  Symptome: {', '.join(doc.get('symptome', []))}\n"
-                f"  Ursachen: {', '.join(doc.get('mögliche_ursachen', []))}\n"
-                f"  Lösung: {', '.join(doc.get('lösungen', []))}\n"
-                f"  Teile: {', '.join(doc.get('ersatzteile', []) or ['keine'])}"
-            )
-        elif doc.get("typ") == "wartung":
-            context_parts.append(
-                f"Wartungsintervall [{doc.get('id', '?')}]:\n"
-                f"  Bauteil: {doc.get('bauteil', '?')}\n"
-                f"  Tätigkeit: {doc.get('tätigkeit', '?')}"
-            )
-        elif doc.get("typ") == "mechaniker_korrektur":
-            context_parts.append(
-                f"Mechaniker-Korrektur (verifiziert):\n"
-                f"  Situation: {doc.get('situation', '?')}\n"
-                f"  Tatsächliche Lösung: {doc.get('korrekte_lösung', '?')}"
-            )
-
-    context_str = "\n\n".join(context_parts) if context_parts else "Keine ähnlichen Fälle gefunden."
-
-    prompt = f"""Du bist ein Wartungsexperte für CNC-Fertigungsanlagen. Analysiere die folgenden Sensordaten und erstelle einen konkreten Reparaturplan.
+    prompt = f"""Du bist ein Wartungsexperte für CNC-Fertigungsanlagen. Analysiere die Sensordaten und erstelle einen konkreten Reparaturplan.
 
 ## Aktuelle Sensordaten
 {sensor_text}
@@ -219,63 +263,36 @@ def generate_analysis(frame: dict) -> dict:
 {context_str}
 
 ## Aufgabe
-Erstelle eine strukturierte Analyse mit:
-1. Wahrscheinlichste Ursache (1-2 Sätze)
-2. Sofortmaßnahmen (nummerierte Liste)
-3. Reparaturschritte für den Mechaniker (nummerierte Liste)
-4. Benötigte Ersatzteile
-5. Geschätzte Reparaturdauer
-6. Priorität (kritisch/hoch/mittel/niedrig)
-
-Antworte ausschließlich als JSON in diesem Format:
+Antworte NUR als JSON (kein Text davor oder danach):
 {{
-  "ursache": "...",
-  "sofortmassnahmen": ["...", "..."],
-  "reparaturschritte": ["...", "..."],
-  "ersatzteile": ["...", "..."],
+  "ursache": "Wahrscheinlichste Ursache in 1-2 Sätzen",
+  "sofortmassnahmen": ["Schritt 1", "Schritt 2"],
+  "reparaturschritte": ["Schritt 1", "Schritt 2", "Schritt 3"],
+  "ersatzteile": ["Teil 1", "Teil 2"],
   "reparaturdauer_h": 2,
   "priorität": "kritisch",
   "konfidenz": 0.85,
-  "hinweis": "..."
+  "hinweis": "Optionaler Hinweis"
 }}"""
 
-    tokenizer, model = get_gemma()
-    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-
-    import torch
-    with torch.no_grad():
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=512,
-            temperature=0.3,
-            do_sample=True,
-            pad_token_id=tokenizer.eos_token_id,
-        )
-
-    response = tokenizer.decode(
-        outputs[0][inputs["input_ids"].shape[1]:],
-        skip_special_tokens=True
-    ).strip()
-
-    # JSON aus Antwort extrahieren
     try:
+        response = _call_gemma_subprocess(prompt)
         start = response.find("{")
         end   = response.rfind("}") + 1
         if start >= 0 and end > start:
             result = json.loads(response[start:end])
         else:
-            raise ValueError("Kein JSON gefunden")
-    except Exception:
-        # Fallback: strukturierte Antwort als Text
+            raise ValueError("Kein JSON in Antwort")
+    except Exception as e:
         result = {
-            "ursache": response[:300] if response else "Analyse nicht verfügbar",
-            "sofortmassnahmen": ["Anlage stoppen", "Techniker informieren"],
+            "ursache":           f"Analyse-Fehler: {str(e)[:100]}",
+            "sofortmassnahmen":  ["Anlage stoppen", "Techniker informieren"],
             "reparaturschritte": ["Manuelle Inspektion durchführen"],
-            "ersatzteile": [],
-            "reparaturdauer_h": 2,
-            "priorität": "hoch",
-            "konfidenz": 0.5,
-            "hinweis": "Automatische JSON-Extraktion fehlgeschlagen — manuelle Prüfung erforderlich",
+            "ersatzteile":       [],
+            "reparaturdauer_h":  2,
+            "priorität":         "hoch",
+            "konfidenz":         0.5,
+            "hinweis":           "Gemma-Subprocess fehlgeschlagen — manuelle Prüfung",
         }
 
     result["sensor_text"] = sensor_text
